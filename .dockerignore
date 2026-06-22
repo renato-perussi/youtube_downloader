@@ -1,0 +1,30 @@
+# Ambientes Virtuais
+.venv/
+
+# Git e controle de versão
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Arquivos locais / Mídias / Imagens
+media/downloads/
+readme_images/
+
+# Configurações sensíveis / Variáveis de ambiente
+.env
+
+# Dependências de desenvolvimento
+requirements-dev.txt
+
+# IDEs / Editores
+.vscode/
+.idea/
+*.swp
+
+# Documentação interna
+AGENTS.md

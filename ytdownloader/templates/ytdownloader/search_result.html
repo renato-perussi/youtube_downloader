@@ -1,0 +1,88 @@
+{% extends 'ytdownloader/base.html' %}
+{% block title %}Resultado da Busca{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-8rem)]">
+    {% if video_info %}
+    <a href="{% url 'home' request_tenant.slug %}" class="inline-flex items-center gap-1.5 text-gray-400 hover:text-white transition mb-6">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+        Voltar para nova busca
+    </a>
+
+    <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-8 transition-all duration-300 hover:scale-[1.01]">
+        <div class="flex flex-col md:flex-row gap-6">
+            <div class="w-full md:w-72 flex-shrink-0">
+                <img src="{{ video_info.thumbnail }}" alt="{{ video_info.title }}" class="w-full rounded-xl shadow-lg ring-1 ring-white/20">
+            </div>
+            <div class="flex-1 min-w-0">
+                <h2 class="text-xl font-bold text-white mb-3">{{ video_info.title }}</h2>
+                <div class="space-y-1.5 text-sm text-gray-300 mb-6">
+                    <p><span class="font-medium text-gray-400">Canal:</span> {{ video_info.channel }}</p>
+                    <p><span class="font-medium text-gray-400">Duração:</span> {{ video_info.duration_formatted }}</p>
+                    <p><span class="font-medium text-gray-400">Visualizações:</span> {{ video_info.view_count_formatted }}</p>
+                    <p><span class="font-medium text-gray-400">Publicado em:</span> {{ video_info.upload_date_formatted }}</p>
+                </div>
+
+                <hr class="border-white/10 mb-6">
+
+                <h3 class="text-lg font-semibold text-white mb-4">Opções de download</h3>
+
+                <form method="post" class="space-y-6">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="download">
+
+                    {{ download_form.url }}
+
+                    {% for field in download_form.visible_fields %}
+                        <div>
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-300 mb-1">
+                                {{ field.label }}
+                            </label>
+                            {{ field }}
+                            {% if field.errors %}
+                                <p class="text-red-400 text-sm mt-1">{{ field.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+
+                    <button type="submit" class="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg shadow-red-600/30">
+                        <i data-lucide="download" class="w-5 h-5"></i>
+                        Baixar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if video_info %}
+<script>
+    const videoQualities = ['1080p', '720p', '480p', '360p'];
+    const audioQualities = ['320kbps', '192kbps', '128kbps', '64kbps'];
+
+    function updateQualities() {
+        const formatSelect = document.getElementById('{{ download_form.format_choice.id_for_label }}');
+        const qualitySelect = document.getElementById('{{ download_form.quality.id_for_label }}');
+        const selected = formatSelect.value;
+
+        let options = [];
+        if (['mp4', 'webm'].includes(selected)) {
+            options = videoQualities;
+        } else if (['mp3', 'wav', 'flac'].includes(selected)) {
+            options = audioQualities;
+        }
+
+        qualitySelect.innerHTML = '';
+        options.forEach(q => {
+            const opt = document.createElement('option');
+            opt.value = q;
+            opt.textContent = q;
+            qualitySelect.appendChild(opt);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', updateQualities);
+</script>
+{% endif %}
+{% endblock %}

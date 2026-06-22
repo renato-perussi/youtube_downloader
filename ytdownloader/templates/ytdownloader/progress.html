@@ -1,0 +1,121 @@
+{% extends 'ytdownloader/base.html' %}
+{% block title %}Baixando...{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-8 text-center">
+        <div id="progress-status">
+            <div class="flex justify-center mb-6">
+                <div id="spinner" class="w-16 h-16 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                <div id="check-icon" class="hidden w-16 h-16 text-green-400">
+                    <i data-lucide="check-circle" class="w-16 h-16"></i>
+                </div>
+            </div>
+
+            <h1 id="status-title" class="text-xl font-bold text-white mb-2">Baixando vídeo...</h1>
+            <p id="status-subtitle" class="text-gray-400 text-sm mb-6">Isso pode levar alguns segundos</p>
+
+            <div class="bg-white/5 rounded-xl p-6 mb-6">
+                <div class="w-full bg-white/10 rounded-full h-4 mb-3 overflow-hidden">
+                    <div id="progress-bar" class="h-full rounded-full transition-all duration-300 ease-out"
+                         style="width: 0%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div>
+                </div>
+                <p id="progress-text" class="text-2xl font-bold text-white">0%</p>
+            </div>
+
+            <div id="error-box" class="hidden bg-red-500/20 border border-red-500/30 rounded-xl p-4 mb-6">
+                <p id="error-message" class="text-red-300 text-sm"></p>
+            </div>
+
+            <div id="download-info" class="text-left bg-white/5 rounded-xl p-4 space-y-2 text-sm text-gray-300 mb-6">
+                <p><span class="text-gray-400">Título:</span> <span id="info-title" class="text-white">{{ download.title }}</span></p>
+                <p><span class="text-gray-400">Formato:</span> <span class="text-white uppercase">{{ download.format_choice }}</span></p>
+                <p><span class="text-gray-400">Qualidade:</span> <span class="text-white">{{ download.quality }}</span></p>
+                <p><span class="text-gray-400">Tamanho:</span> <span id="info-size" class="text-white">{% if download.file_size %}{{ download.file_size|filesizeformat }}{% else %}-{% endif %}</span></p>
+            </div>
+
+            <div id="action-buttons" class="hidden flex gap-4 justify-center">
+                <a id="view-history-btn" href="{% url 'history' request_tenant.slug %}"
+                   class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-6 rounded-xl transition-all duration-300 inline-flex items-center gap-2 shadow-lg shadow-indigo-600/30">
+                    <i data-lucide="clock" class="w-4 h-4"></i>
+                    Ver Histórico
+                </a>
+                <a href="{% url 'home' request_tenant.slug %}"
+                   class="bg-white/20 hover:bg-white/30 text-white font-semibold py-2.5 px-6 rounded-xl transition-all duration-300 inline-flex items-center gap-2">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    Novo Download
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function() {
+        const pollUrl = "{% url 'download_progress_json' request_tenant.slug download.pk %}";
+
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const statusTitle = document.getElementById('status-title');
+        const statusSubtitle = document.getElementById('status-subtitle');
+        const spinner = document.getElementById('spinner');
+        const checkIcon = document.getElementById('check-icon');
+        const errorBox = document.getElementById('error-box');
+        const errorMessage = document.getElementById('error-message');
+        const actionButtons = document.getElementById('action-buttons');
+        const infoSize = document.getElementById('info-size');
+
+        let pollInterval;
+
+        function updateProgress(pct) {
+            const clamped = Math.min(100, Math.max(0, pct));
+            progressBar.style.width = clamped + '%';
+            progressText.textContent = clamped + '%';
+        }
+
+        function onComplete(fileSize) {
+            clearInterval(pollInterval);
+            spinner.classList.add('hidden');
+            checkIcon.classList.remove('hidden');
+            statusTitle.textContent = 'Download concluído!';
+            statusSubtitle.textContent = '';
+            if (fileSize) {
+                infoSize.textContent = fileSize;
+            }
+            actionButtons.classList.remove('hidden');
+        }
+
+        function onError(msg) {
+            clearInterval(pollInterval);
+            spinner.classList.add('hidden');
+            statusTitle.textContent = 'Erro no download';
+            statusSubtitle.textContent = '';
+            errorBox.classList.remove('hidden');
+            errorMessage.textContent = msg || 'Ocorreu um erro inesperado.';
+            actionButtons.classList.remove('hidden');
+        }
+
+        function poll() {
+            fetch(pollUrl)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    updateProgress(data.progress);
+
+                    if (data.status === 'completed') {
+                        onComplete(data.file_size);
+                    } else if (data.status === 'failed') {
+                        onError(data.error_message);
+                    }
+                })
+                .catch(function() {
+                    // keep polling on network errors
+                });
+        }
+
+        poll();
+        pollInterval = setInterval(poll, 500);
+    })();
+</script>
+{% endblock %}
