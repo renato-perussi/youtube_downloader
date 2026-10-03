@@ -1,7 +1,3 @@
-### Local ###
-### Docs
-AGENTS.md
-
 ### Django ###
 *.log
 *.pot
@@ -263,3 +259,7 @@ poetry.toml
 
 # LSP config files
 pyrightconfig.json
+
+# Project
+staticfiles/
+media/downloads/

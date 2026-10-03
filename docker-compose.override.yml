@@ -1,0 +1,8 @@
+services:
+  web:
+    volumes:
+      - .:/app
+    environment:
+      ENVIRONMENT: dev
+      DEBUG: 'True'
+    command: python manage.py runserver 0.0.0.0:8000

@@ -1,7 +1,7 @@
 # Ambientes Virtuais
 .venv/
 
-# Git e controle de versão
+# Git e controle de versao
 .git/
 .gitignore
 
@@ -10,15 +10,23 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage*
 
-# Arquivos locais / Mídias / Imagens
+# Build / estaticos
+staticfiles/
+
+# Arquivos locais / Midias
 media/downloads/
-readme_images/
+db.sqlite3
+docs/
 
-# Configurações sensíveis / Variáveis de ambiente
+# Configuracoes sensiveis
 .env
 
-# Dependências de desenvolvimento
+# Dependencias de desenvolvimento
 requirements-dev.txt
 
 # IDEs / Editores
@@ -26,5 +34,5 @@ requirements-dev.txt
 .idea/
 *.swp
 
-# Documentação interna
+# Documentacao interna
 AGENTS.md

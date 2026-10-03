@@ -1,0 +1,45 @@
+[project]
+name = 'youtube-downloader'
+version = '1.0.0'
+description = 'Aplicacao Django multi-tenant para download de videos e audios do YouTube via yt-dlp.'
+requires-python = '>=3.12'
+dependencies = [
+  'Django==6.0.6',
+  'psycopg2-binary==2.9.12',
+  'python-dotenv==1.2.2',
+  'yt-dlp[default]==2026.8.19',
+  'gunicorn==23.0.0',
+  'whitenoise==6.9.0',
+]
+
+[tool.ruff]
+target-version = 'py312'
+line-length = 100
+extend-exclude = ['.venv', 'migrations', '__pycache__', 'media', 'staticfiles']
+
+[tool.ruff.lint]
+select = ['E', 'F', 'I', 'W', 'UP', 'B', 'SIM', 'RUF']
+ignore = ['E501', 'RUF012']
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-single-line = false
+
+[tool.ruff.format]
+quote-style = 'single'
+indent-style = 'space'
+line-ending = 'auto'
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = 'app.settings.test'
+pythonpath = ['.']
+testpaths = ['ytdownloader/tests']
+addopts = '-v --tb=short'
+
+[tool.coverage.run]
+source = ['ytdownloader', 'app']
+omit = ['*/migrations/*', '*/tests/*', '*/test_*.py', 'manage.py', '*/utils.py']
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

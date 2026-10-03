@@ -2,14 +2,19 @@ services:
   web:
     build: .
     ports:
-      - "8000:8000"
+      - '8000:8000'
     volumes:
-      - .:/app
       - media_data:/app/media
+      - static_data:/app/staticfiles
     env_file:
       - .env
+    environment:
+      ENVIRONMENT: prd
+      DEBUG: 'False'
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
   db:
     image: postgres:17-alpine
@@ -19,7 +24,14 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   media_data:
+  static_data:

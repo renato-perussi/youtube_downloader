@@ -1,3 +1,5 @@
+"""Admin do ytdownloader."""
+
 from django.contrib import admin
 
 from .models import Download, Tenant

@@ -1,11 +1,11 @@
 #!/bin/sh
 set -e
 
-echo "Gerando as migrações..."
-python manage.py makemigrations
+echo 'Aplicando migracoes...'
+python manage.py migrate --noinput
 
-echo "Aplicando as migrações no banco de dados..."
-python manage.py migrate
+echo 'Coletando estaticos...'
+python manage.py collectstatic --noinput || true
 
-echo "Iniciando o servidor..."
+echo 'Iniciando aplicacao...'
 exec "$@"

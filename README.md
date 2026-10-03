@@ -1,159 +1,229 @@
 # YouTube Downloader
 
-Uma aplicação web Django para download de vídeos e áudios do YouTube. O projeto utiliza `yt-dlp` nos bastidores e apresenta uma interface moderna construída com Tailwind CSS. 
+Aplicação Django multi-tenant para pesquisar, baixar e gerenciar vídeos/áudios do YouTube com `yt-dlp`, progresso em tempo real e histórico isolado por usuário.
 
-Conta com uma arquitetura **Multi-Tenant** (Multilocatário), onde cada usuário possui seu próprio ambiente isolado de downloads e histórico.
+![Python](https://img.shields.io/badge/python-3.12-blue) ![Django](https://img.shields.io/badge/django-6.0-green) ![Ruff](https://img.shields.io/badge/lint-ruff-black) ![Pytest](https://img.shields.io/badge/tests-pytest-yellow) ![Docker](https://img.shields.io/badge/docker-ready-blue)
 
----
+## Sumário
 
-## 📸 Capturas de Tela
+- [Capturas de tela](#capturas-de-tela)
+- [Funcionalidades](#funcionalidades)
+- [Tecnologias](#tecnologias)
+- [Arquitetura](#arquitetura)
+- [Pré-requisitos](#pré-requisitos)
+- [Quickstart](#quickstart)
+- [Variáveis de ambiente](#variáveis-de-ambiente)
+- [Testes e qualidade](#testes-e-qualidade)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Fluxo de download](#fluxo-de-download)
+- [Comandos úteis](#comandos-úteis)
+- [Roadmap e melhorias sugeridas](#roadmap-e-melhorias-sugeridas)
+- [Licença](#licença)
+
+## Capturas de tela
 
 <div align="center">
-  <img src="readme_images/01-Login.png" alt="Tela de Login" width="800">
+  <img src="docs/screenshots/01-Login.png" alt="Tela de Login" width="800">
   <br><br>
-  <img src="readme_images/02-Search.png" alt="Tela de Busca e Seleção de Qualidade" width="800">
+  <img src="docs/screenshots/02-Search.png" alt="Tela de Busca e Seleção de Qualidade" width="800">
   <br><br>
-  <img src="readme_images/03-History.png" alt="Tela de Histórico de Downloads" width="800">
+  <img src="docs/screenshots/03-History.png" alt="Tela de Histórico de Downloads" width="800">
 </div>
 
----
+## Funcionalidades
 
-## 🚀 Funcionalidades
+- Download de vídeo (`mp4`, `webm`) e áudio (`mp3`, `wav`, `flac`).
+- Múltiplas qualidades com validação cruzada formato x qualidade.
+- Processamento em background via `threading` sem bloquear a UI.
+- Progresso em tempo real com polling JSON a cada 500ms.
+- Multi-tenant: cada `User` tem um `Tenant` com slug próprio e isolamento total.
+- Histórico paginado com busca, detalhe, exclusão individual e em massa.
+- Exportação ZIP de todos os concluídos.
+- Mensagens de erro amigáveis sem vazar URLs assinadas.
+- Admin Django configurado para `Tenant` e `Download`.
 
-- **Download de Vídeo e Áudio**: Suporta extração apenas de áudio ou vídeo completo.
-- **Múltiplas Qualidades**: Escolha entre diversas resoluções de vídeo (1080p, 720p, etc.) e qualidades de áudio.
-- **Processamento em Background**: Downloads ocorrem em segundo plano (via *threading*) sem bloquear a interface.
-- **Progresso em Tempo Real**: Acompanhamento visual do progresso do download via AJAX (*polling*).
-- **Arquitetura Multi-Tenant**: Cada conta de usuário possui seu próprio `Tenant` exclusivo (URLs prefixadas com o `slug` do usuário). Histórico e arquivos são completamente isolados e seguros.
-- **Interface Moderna**: UI limpa e responsiva utilizando **Tailwind CSS** (via CDN) e **Lucide Icons**.
+## Tecnologias
 
----
+| Camada | Stack |
+|---|---|
+| Backend | Python 3.12, Django 6.0 |
+| Download engine | `yt-dlp`, `ffmpeg`, Node.js (JS runtime) |
+| Frontend | HTML5, Tailwind CSS via CDN, Lucide Icons, Vanilla JS |
+| Banco | SQLite (dev/test), PostgreSQL 17 (prd) |
+| Servidor | Gunicorn + WhiteNoise |
+| Qualidade | Ruff (lint + format, aspas simples), Pytest + pytest-django |
+| Deploy | Dockerfile multi-uso + Docker Compose com healthcheck |
 
-## 🛠️ Tecnologias e Arquitetura
+## Arquitetura
 
-- **Backend**: Python 3.12+, Django 6.x
-- **Frontend**: HTML5, Tailwind CSS, Vanilla JavaScript
-- **Download Engine**: [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-- **Processamento de Mídia**: `ffmpeg`
-- **Banco de Dados**: SQLite (Desenvolvimento) / PostgreSQL (Produção via `ENVIRONMENT=prd`)
-- **Deploy**: Arquivos `Dockerfile` e `docker-compose.yml` prontos para orquestração de contêineres.
+Camadas com responsabilidade única e 100% Class-Based Views:
 
----
+- `ytdownloader/models/` — `Tenant`, `Download`, `choices`, `DownloadQuerySet` (`for_tenant`, `completed`, `search`).
+- `ytdownloader/forms/` — `SearchForm`, `DownloadForm` com `clean_quality`.
+- `ytdownloader/services/` — `ytdlp` (integração), `downloads` (thread + progresso), `files` (tamanho + ZIP), `exceptions` (erros amigáveis).
+- `ytdownloader/views/` — `auth`, `home`, `search`, `history`, `progress`, `files` + `mixins` (`TenantAwareMixin`, `SearchMixin`).
+- `ytdownloader/signals.py` — cria `Tenant` no `post_save(User)` e remove arquivo no `post_delete(Download)`.
+- `app/settings/` — `base`, `dev`, `prd`, `test` selecionados por `ENVIRONMENT`.
+- `app/urls.py` + `ytdownloader/urls.py` — todas as rotas prefixadas por `<slug:slug>/`.
 
-## ⚙️ Pré-requisitos
+Rotas principais:
 
-Para rodar o projeto, você precisará ter instalado em sua máquina:
+| Rota | View (CBV) |
+|---|---|
+| `/` | `RootRedirectView` |
+| `/login_redirect/` | `LoginRedirectView` |
+| `/accounts/register/` | `RegisterView` |
+| `/<slug>/` | `DownloadCreateView` |
+| `/<slug>/search/` | `SearchResultView` |
+| `/<slug>/history/` | `DownloadHistoryView` |
+| `/<slug>/detail/<pk>/` | `DownloadDetailView` |
+| `/<slug>/delete/<pk>/` | `DownloadDeleteView` |
+| `/<slug>/download/<pk>/` | `ServeDownloadView` |
+| `/<slug>/progress/<pk>/` | `DownloadProgressView` |
+| `/<slug>/progress/<pk>/json/` | `DownloadProgressJsonView` |
+| `/<slug>/download-all/` | `DownloadAllView` |
+| `/<slug>/delete-all/` | `DownloadDeleteAllView` |
 
-1. **Python 3.12+** (Para execução local nativa)
-2. **[FFmpeg](https://ffmpeg.org/download.html)**: Obrigatório pelo `yt-dlp` para mesclar áudio/vídeo e realizar conversões.
-   - *Ubuntu/Debian*: `sudo apt install ffmpeg`
-   - *MacOS*: `brew install ffmpeg`
-   - *Windows*: Baixe o executável e adicione ao seu PATH.
-3. **Docker e Docker Compose** (Opcional, mas altamente recomendado).
+## Pré-requisitos
 
----
+- Python 3.12+ e `ffmpeg` para execução local.
+- Node.js 18+ recomendado (runtime JS do `yt-dlp`, evita fallback).
+- Docker + Docker Compose para execução conteinerizada.
 
-## 📦 Como Instalar e Rodar
+## Quickstart
 
-> [!WARNING]
-> **Atenção sobre o Banco de Dados:** O projeto verifica o valor da variável `ENVIRONMENT` no arquivo `.env`. Se você definir `ENVIRONMENT=prd`, o sistema tentará se conectar ao banco **PostgreSQL** (que requer configuração adicional). Qualquer outro valor fará com que a aplicação utilize o banco **SQLite** por padrão.
+### Opção 1 — Docker (recomendado)
 
-Você pode executar a aplicação diretamente no seu ambiente local ou através de Contêineres (Docker).
+```bash
+git clone https://github.com/renato-perussi/youtube_downloader.git
+cd youtube_downloader
+cp .env.example .env
+docker compose -f docker-compose.yml up --build
+```
 
-### Opção 1: Rodando com Docker (Recomendado)
+Acesse `http://localhost:8000`.
 
-A maneira mais rápida de subir a aplicação com todas as suas dependências sistêmicas (como o FFmpeg isolado no contêiner).
+O `entrypoint.sh` executa apenas `migrate` + `collectstatic` (sem `makemigrations` em produção) e sobe o Gunicorn com 3 workers. O serviço `db` possui healthcheck com `pg_isready` e o `web` aguarda o banco saudável. O healthcheck do `web` consulta `/healthz/` que valida o banco.
 
-1. Clone o repositório e acesse a pasta:
-   ```bash
-   git clone https://github.com/renato-perussi/youtube_downloader.git
-   cd youtube_downloader
-   ```
+Para desenvolvimento local com bind mount e `runserver`, use o override (SQLite):
 
-2. Crie o arquivo de variáveis de ambiente:
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+docker compose up --build
+```
 
-3. Suba os contêineres:
-   ```bash
-   docker-compose up --build -d
-   ```
+### Opção 2 — Local
 
-4. Acesse `http://localhost:8000` no seu navegador!
+```bash
+git clone https://github.com/renato-perussi/youtube_downloader.git
+cd youtube_downloader
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+cp .env.example .env
+python manage.py migrate
+python manage.py runserver
+```
 
-### Opção 2: Rodando Localmente
+> `ENVIRONMENT=prd` ativa PostgreSQL. Qualquer outro valor usa SQLite. `ENVIRONMENT=test` usa SQLite em memória para o Pytest.
 
-1. Clone o repositório:
-   ```bash
-   git clone https://github.com/renato-perussi/youtube_downloader.git
-   cd youtube_downloader
-   ```
+## Variáveis de ambiente
 
-2. Crie e ative um ambiente virtual:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # No Windows: .venv\Scripts\activate
-   ```
+| Var | Exemplo | Descrição |
+|---|---|---|
+| `SECRET_KEY` | `openssl rand -hex 32` | Chave do Django (>=32 chars, obrigatória em prod) |
+| `DEBUG` | `False` | Debug local (nunca `True` em prod) |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Hosts permitidos |
+| `ENVIRONMENT` | `prd` | `dev`/`prd`/`test` |
+| `POSTGRES_DB` | `ytdownloader` | Banco prod |
+| `POSTGRES_USER` | `postgres` | Usuário prod |
+| `POSTGRES_PASSWORD` | `postgres` | Senha prod |
+| `POSTGRES_HOST` | `db` | Host prod (Compose usa `db`) |
+| `POSTGRES_PORT` | `5432` | Porta prod |
+| `SECURE_SSL_REDIRECT` | `False` | `True` apenas atrás de proxy TLS |
+| `SESSION_COOKIE_SECURE` | `False` | `True` com HTTPS |
+| `CSRF_COOKIE_SECURE` | `False` | `True` com HTTPS |
+| `SECURE_HSTS_SECONDS` | `0` | `31536000` com HTTPS válido |
 
-3. Instale as dependências Python:
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Testes e qualidade
 
-4. Configure as variáveis de ambiente:
-   ```bash
-   cp .env.example .env
-   ```
+Ferramentas: `ruff` substitui `black` + `blue` + `flake8` + `isort` (removidos do `requirements-dev.txt` para evitar conflito).
 
-5. Execute as migrações do banco de dados:
-   ```bash
-   python manage.py makemigrations
-   python manage.py migrate
-   ```
+```bash
+source .venv/bin/activate
+ruff check .
+ruff format --check .
+pytest
+pytest --cov
+python manage.py check
+python manage.py migrate
+```
 
-6. Inicie o servidor de desenvolvimento:
-   ```bash
-   python manage.py runserver
-   ```
+Padrões adotados:
 
-7. Acesse `http://localhost:8000` no seu navegador.
+- 100% Class-Based Views, sem function-based views.
+- Aspas simples em todo o código Python (`ruff format` com `quote-style = 'single'`).
+- Camada `services/` pura e testável, views finas.
+- 67 testes Pytest cobrindo modelos, formulários, serviços, segurança anti-SSRF e views com isolamento multi-tenant.
+- Hardening: whitelist YouTube, limite 2h/concorrência 2, erros sem vazar URLs, `SECURE_*` em prod, `/healthz/` com check de banco.
+- Correções pós-auditoria: `SECRET_KEY` forte exigida em prod, slug único com sufixo, semáforo tratado na view (sem 500), validação também na camada `services`, ZIP limitado a 500MB com `DEFLATED`.
+- Concorrência segura: `outtmpl` único por `download_id`, revalidação de duração/live no POST direto, sem arquivos órfãos.
 
----
+## Estrutura do projeto
 
-## 🧩 Estrutura do Projeto e Fluxo
+```text
+app/
+  settings/{base,dev,prd,test}.py  # config por ENVIRONMENT
+  urls.py                           # RootRedirectView + includes
+  wsgi.py / asgi.py
+ytdownloader/
+  models/{tenant,download,choices}.py
+  forms/{search,download}.py
+  services/{ytdlp,downloads,files,exceptions}.py
+  views/{auth,home,search,history,progress,files,mixins}.py
+  signals.py
+  context_processors.py
+  admin.py
+  urls.py
+  templates/
+  tests/                            # pytest-django
+Dockerfile                          # python:3.12-slim + ffmpeg + node + gunicorn
+docker-compose.yml                  # web + postgres:17-alpine com healthcheck
+entrypoint.sh                       # migrate + collectstatic + exec
+pyproject.toml                      # ruff + pytest + coverage
+```
 
-O projeto é construído em torno da aplicação `ytdownloader`. 
+## Fluxo de download
 
-### Fluxo de Download
-1. **Busca**: O usuário envia uma URL do YouTube na tela inicial de seu tenant. A *view* extrai as informações do vídeo (título, thumb, durações, qualidades disponíveis) via `yt-dlp`, salva esses metadados na sessão e redireciona.
-2. **Seleção**: Na tela de busca, o usuário escolhe se quer apenas Áudio ou Vídeo, e seleciona a resolução/qualidade desejada.
-3. **Download**: Um registro `Download` é criado no banco de dados com status `pending`. Uma *Thread* do Python executa a função de download em segundo plano.
-4. **Progresso**: O usuário é redirecionado para a tela de progresso. A página consulta um *endpoint* JSON a cada 500ms (`/<slug>/progress/<pk>/json/`) para atualizar a barra de progresso lendo os eventos emitidos pelo `yt-dlp` (via *progress_hooks*).
-5. **Finalização**: Ao atingir 100%, o download é concluído, salvo na pasta `media/downloads/` e o usuário pode baixá-lo no seu dispositivo ou acessar o Histórico.
+1. POST `action=search` em `/<slug>/` extrai metadados via `yt-dlp`, salva na sessão e redireciona para `search/`.
+2. GET `search/` exibe `DownloadForm` com URL oculta.
+3. POST `action=download` cria `Download(status=processing)` e dispara thread daemon com `progress_hooks`.
+4. Página `progress/<pk>/` faz polling em `progress/<pk>/json/` a cada 500ms.
+5. Sucesso marca `completed/progress=100` com arquivo em `media/downloads/`; falha marca `failed` com mensagem segura.
 
-### Inquilinos (Multi-Tenant)
-Ao registrar um novo `User`, um *Signal* (`post_save`) automaticamente cria uma instância do modelo `Tenant` vinculado a este usuário. O *slug* do Tenant baseia-se no *username*.
-Todas as views que manipulam informações de downloads estendem a classe `TenantAwareMixin` que garante o isolamento dos dados — o usuário `/joao/` não pode visualizar os downloads e dados da rota `/maria/`.
+## Comandos úteis
 
----
-
-## 💻 Comandos Úteis
-
-**Criar um usuário Administrador (Superuser)**:
 ```bash
 python manage.py createsuperuser
+python manage.py migrate
+docker compose logs -f web
+docker compose exec web python manage.py createsuperuser
 ```
 
-**Verificar logs da aplicação no Docker**:
-```bash
-docker-compose logs -f web
-```
+## Roadmap e melhorias sugeridas
 
----
+- Trocar `threading` por Celery + Redis para escala horizontal e retry persistente.
+- Adicionar Django REST Framework com throttling por tenant.
+- Cache de metadados (Redis) para URLs repetidas.
+- WebSocket (Channels) em vez de polling para progresso.
+- Rate-limit e validação de duração/tamanho máximo por plano.
+- Armazenamento S3-compatível para arquivos em produção.
+- CI com GitHub Actions (`ruff`, `pytest --cov`, `docker build`).
+- Observabilidade: Sentry + logs estruturados + métricas Prometheus.
+- Testes E2E com Playwright no fluxo busca → download → ZIP.
 
-## 📄 Isenção de Responsabilidade e Licença
+## Licença
 
-Este projeto foi desenvolvido **apenas para fins educacionais e de estudo sobre Django, processamento em background e arquitetura de software**. 
+Projeto educacional para portfólio focado em Django, background processing e arquitetura limpa.
 
-Verifique os termos de serviço do YouTube ou das plataformas relevantes antes de realizar o download de conteúdos de terceiros protegidos por direitos autorais. O uso indevido da ferramenta é de total responsabilidade do usuário final.
+Respeite os Termos de Serviço do YouTube e direitos autorais. O uso indevido é responsabilidade do usuário final.

@@ -1,4 +1,16 @@
-black==22.1.0
-blue==0.9.1
-flake8==4.0.1
-isort==8.0.1
+# Tooling de desenvolvimento.
+#
+# Removidos para evitar conflito com o Ruff (format + lint + isort em um so):
+# - black==22.1.0 (substituido por `ruff format`)
+# - blue==0.9.1 (fork do black, redundante)
+# - flake8==4.0.1 (substituido por `ruff check`)
+# - isort==8.0.1 (substituido por `ruff check --select I`)
+#
+# Fluxo atual:
+#   ruff check .        -> lint + isort
+#   ruff format --check . -> formatacao (aspas simples)
+#   pytest              -> testes (pytest-django)
+ruff==0.12.0
+pytest==8.3.4
+pytest-django==4.9.0
+pytest-cov==6.0.0
